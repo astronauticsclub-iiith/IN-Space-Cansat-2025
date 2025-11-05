@@ -1,0 +1,65 @@
+name: Release each folder individually
+
+# Give workflow permission to write contents/releases
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  per-folder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create zip and release per folder
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # iterate visible top-level folders
+          find . -mindepth 1 -maxdepth 1 -type d ! -name ".*" -print0 | while IFS= read -r -d '' dir; do
+            folder=$(basename "$dir")
+            echo "Processing $folder"
+
+            tmpzip="/tmp/${folder// /_}.zip"
+            rm -f "$tmpzip"
+            (cd "$dir" && zip -r -q "$tmpzip" .)
+
+            # create a tag name and release name
+            tag="pkg-${folder// /_}-$(date +%Y%m%d%H%M%S)"
+            release_name="Package - $folder"
+
+            # Use the GitHub Releases action to create the release
+            # softprops/action-gh-release creates a release using GITHUB_TOKEN when invoked
+            echo "Creating release $tag for $folder"
+            # create a simple API call to create release via curl using token (works reliably)
+            resp=$(curl -s -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${GITHUB_REPOSITORY}/releases \
+              -d "$(jq -n --arg t "$tag" --arg n "$release_name" --arg b "Auto-generated package for $folder" '{ tag_name: $t, name: $n, body: $b, draft: false, prerelease: false }')")
+
+            upload_url=$(echo "$resp" | jq -r .upload_url | sed -e "s/{?name,label}//")
+            if [ -z "$upload_url" ] || [ "$upload_url" = "null" ]; then
+              echo "Failed to create release: $resp"
+              exit 1
+            fi
+
+            # Upload asset
+            filename=$(basename "$tmpzip")
+            curl --fail -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Content-Type: application/zip" \
+              --data-binary @"$tmpzip" \
+              "$upload_url?name=$filename"
+            echo "Uploaded $filename to $tag"
+          done

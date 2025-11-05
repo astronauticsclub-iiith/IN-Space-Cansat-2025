@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+<robot name="CanSatSolidChute">
+
+  <material name="red">
+    <color rgba="0.8 0.2 0.2 1.0"/>
+  </material>
+  <material name="white">
+    <color rgba="0.95 0.95 0.95 0.9"/>
+  </material>
+  <material name="green">
+    <color rgba="0.2 1.0 0.2 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.2 0.2 1.0 1.0"/>
+  </material>
+
+  <link name="base_link">
+    <inertial>
+      <mass value="0.35"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.0005"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <cylinder radius="0.075" length="0.4"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.075" length="0.4"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <link name="parachute_link">
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+    </inertial>
+    <visual>
+        <origin rpy="0 0 0"/>
+        <geometry>
+            <cylinder radius="0.25" length="0.01"/>
+        </geometry>
+        <material name="white"/>
+    </visual>
+    <collision>
+         <geometry>
+            <cylinder radius="0.25" length="0.01"/>
+        </geometry>
+    </collision>
+  </link>
+  <joint name="parachute_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="parachute_link"/>
+    <origin xyz="0 0 0.4"/> </joint>
+
+  <link name="rw_x_link">
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="2e-5"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.05" length="0.01"/></geometry>
+      <material name="red"/>
+    </visual>
+  </link>
+  <joint name="rw_x_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="rw_x_link"/>
+    <origin xyz="0 0 -0.1" rpy="0 1.5707 0"/> <axis xyz="1 0 0"/>
+    <limit effort="1.0" velocity="1000"/>
+  </joint>
+
+  <link name="rw_y_link">
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="2e-5"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.05" length="0.01"/></geometry>
+      <material name="green"/>
+    </visual>
+  </link>
+  <joint name="rw_y_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="rw_y_link"/>
+    <origin xyz="0 0 0" rpy="1.5707 0 0"/> <axis xyz="0 1 0"/>
+    <limit effort="1.0" velocity="1000"/>
+  </joint>
+
+  <link name="rw_z_link">
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="2e-5"/>
+    </inertial>
+    <visual>
+      <geometry><cylinder radius="0.05" length="0.01"/></geometry>
+      <material name="blue"/>
+    </visual>
+  </link>
+  <joint name="rw_z_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="rw_z_link"/>
+    <origin xyz="0 0 0.1"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="1.0" velocity="1000"/>
+  </joint>
+
+  <gazebo reference="base_link"><material>Gazebo/Red</material></gazebo>
+  <gazebo reference="parachute_link"><material>Gazebo/White</material></gazebo>
+  <gazebo reference="rw_x_link"><material>Gazebo/Red</material></gazebo>
+  <gazebo reference="rw_y_link"><material>Gazebo/Green</material></gazebo>
+  <gazebo reference="rw_z_link"><material>Gazebo/Blue</material></gazebo>
+
+  <gazebo>
+    <plugin name="aerodynamics_plugin" filename="libaerodynamics_plugin.so"/>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="reaction_wheel_plugin" filename="libreaction_wheel_plugin.so"/>
+  </gazebo>
+
+  <gazebo reference="base_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>100</update_rate>
+      <plugin name="gazebo_ros_imu_sensor" filename="libgazebo_ros_imu_sensor.so">
+        <ros><remapping>~/out:=imu</remapping></ros>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+</robot>

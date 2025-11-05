@@ -1,0 +1,105 @@
+name: Auto-create .ino and README for top-level folders
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  create-and-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan folders and create missing files
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Scanning for folders to process..."
+
+          # Use command grouping to combine the output of multiple 'find' commands.
+          (
+            # 1. Find top-level dirs, excluding hidden, 'Archived', and 'AQ' folders.
+            find . -mindepth 1 -maxdepth 1 -type d ! -name ".*" ! -name "Archived" ! -name "AQ" -print0;
+
+            # 2. If 'Archived' exists, find its immediate subdirectories.
+            if [ -d "Archived" ]; then
+              find ./Archived -mindepth 1 -maxdepth 1 -type d ! -name ".*" -print0;
+            fi;
+
+            # 3. If 'AQ' exists, find its immediate subdirectories.
+            if [ -d "AQ" ]; then
+              find ./AQ -mindepth 1 -maxdepth 1 -type d ! -name ".*" -print0;
+            fi
+          ) | while IFS= read -r -d '' dir; do
+              echo "Processing directory: $dir"
+              folder=$(basename "$dir")
+              ino_file="$dir/$folder.ino"
+              readme_file="$dir/README.md"
+
+              # Create .ino if missing
+              if [ ! -f "$ino_file" ]; then
+                echo "Creating missing $ino_file"
+                mkdir -p "$dir"
+                cat > "$ino_file" <<'EOF'
+          // {FOLDER_NAME} Arduino Sketch
+          void setup() {
+            // setup code here
+          }
+
+          void loop() {
+            // loop code here
+          }
+          EOF
+                sed -i "s/{FOLDER_NAME}/$folder/" "$ino_file"
+              fi
+
+              # Create README.md if missing
+              if [ ! -f "$readme_file" ]; then
+                echo "Creating missing $readme_file"
+                cat > "$readme_file" <<EOF
+          # $folder
+
+          Auto-created README for $folder.
+          EOF
+              fi
+            done
+
+      # NOTE: This step and the next one are now correctly indented.
+      - name: Show git status (debug)
+        shell: bash
+        run: |
+          git status --porcelain || true
+
+      - name: Commit & push changes (if any)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Stage all changes, including new untracked files
+          git add -A
+
+          # Check if there are any staged changes.
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          
+          echo "Committing and pushing changes..."
+          git commit -m "chore: auto-generate missing .ino and README.md [skip ci]"
+          branch="${GITHUB_REF#refs/heads/}"
+          git push origin "HEAD:$branch"
